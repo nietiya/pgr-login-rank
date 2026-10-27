@@ -31,7 +31,9 @@
     background:#10141b;color:var(--text);border:1px solid var(--line);border-radius:11px;outline:none
   }
   #q:focus{border-color:var(--accent2)}
-  #nextHit{padding:10px 14px;font-size:14px;flex:none;white-space:nowrap}
+  #nextHit,#shuffle{padding:10px 14px;font-size:14px;flex:none;white-space:nowrap}
+  #lightDlg .dlg-b{padding:8px;max-height:72vh;overflow:auto}
+  #lightImg{width:100%;border-radius:10px;display:block}
   .item.hit{border-color:var(--accent2);box-shadow:0 0 0 1px var(--accent2) inset}
   .item.hit .name{color:#9fe0ff;font-weight:700}
   button{
@@ -84,6 +86,7 @@
   <div class="searchrow">
     <input id="q" type="search" placeholder="搜索章节名" autocomplete="off">
     <button id="nextHit" type="button">下一个</button>
+    <button id="shuffle" type="button">打乱</button>
   </div>
 </header>
 
@@ -103,6 +106,12 @@
     <button id="copyBtn" class="primary">复制</button>
     <button id="closeDlg">关闭</button>
   </div>
+</dialog>
+
+<dialog id="lightDlg">
+  <div class="dlg-h" id="lightTitle">查看大图</div>
+  <div class="dlg-b"><img id="lightImg" alt=""></div>
+  <div class="dlg-f"><button id="lightClose">关闭</button></div>
 </dialog>
 
 <dialog id="imgDlg">
@@ -271,6 +280,38 @@
     if(order.length === items.length) items = order;
     renumber(); saveOrder(); toast("已记住这个顺序");
   }
+
+  // 点缩略图看大图
+  listEl.addEventListener("click", function(ev){
+    var img = ev.target.closest ? ev.target.closest(".thumb") : null;
+    if(!img) return;
+    var li = img.closest(".item");
+    if(!li) return;
+    var it = items.filter(function(x){ return x.id === li.dataset.id; })[0];
+    if(!it) return;
+    document.getElementById("lightImg").src = it.src;
+    document.getElementById("lightTitle").textContent = it.name;
+    var d = document.getElementById("lightDlg");
+    if(d.showModal) d.showModal(); else d.setAttribute("open", "");
+  });
+
+  document.getElementById("lightClose").addEventListener("click", function(){
+    var d = document.getElementById("lightDlg");
+    if(d.close) d.close(); else d.removeAttribute("open");
+  });
+
+  // 打乱
+  document.getElementById("shuffle").addEventListener("click", function(){
+    if(items.length < 2) return;
+    for(var i = items.length - 1; i > 0; i--){
+      var j = Math.floor(Math.random() * (i + 1));
+      var t = items[i]; items[i] = items[j]; items[j] = t;
+    }
+    render();
+    saveOrder();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    toast("已打乱");
+  });
 
   var qEl = document.getElementById("q");
   var hitIndex = -1;
