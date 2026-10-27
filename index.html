@@ -77,6 +77,7 @@
 
 <footer>
   <button id="exportBtn" class="primary">导出排名</button>
+  <button id="imgBtn">导出长图</button>
   <button id="resetBtn">恢复默认</button>
 </footer>
 
@@ -256,6 +257,122 @@
     if(!confirm("恢复到默认顺序？你排的会被清掉。")) return;
     try{ localStorage.removeItem(ORDER_KEY); }catch(e){}
     location.reload();
+  });
+
+
+  /* ---------- 导出长图 ---------- */
+  function roundRect(ctx, x, y, w, h, r){
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+
+  function loadImg(src){
+    return new Promise(function(resolve){
+      var im = new Image();
+      im.onload = function(){ resolve(im); };
+      im.onerror = function(){ resolve(null); };
+      im.src = src;
+    });
+  }
+
+  function clipText(ctx, text, maxW){
+    if(ctx.measureText(text).width <= maxW) return text;
+    var t = text;
+    while(t.length > 1 && ctx.measureText(t + "…").width > maxW) t = t.slice(0, -1);
+    return t + "…";
+  }
+
+  var imgBtn = document.getElementById("imgBtn");
+  imgBtn.addEventListener("click", async function(){
+    if(!items.length) return;
+    var old = imgBtn.textContent;
+    imgBtn.disabled = true; imgBtn.textContent = "生成中…";
+    try{
+      var imgs = await Promise.all(items.map(function(it){ return loadImg(it.src); }));
+
+      var W = 760, PAD = 20, ROW = 108, HEAD = 156;
+      var H = HEAD + items.length * ROW + PAD + 40;
+      var c = document.createElement("canvas");
+      c.width = W; c.height = H;
+      var ctx = c.getContext("2d");
+
+      var bg = ctx.createLinearGradient(0, 0, 0, H);
+      bg.addColorStop(0, "#161d28");
+      bg.addColorStop(1, "#0a0c10");
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, W, H);
+
+      ctx.textBaseline = "middle";
+      ctx.fillStyle = "#e9eef7";
+      ctx.font = "bold 36px -apple-system,'PingFang SC','Noto Sans CJK SC',sans-serif";
+      ctx.fillText("战双剧情排行", PAD + 4, 66);
+
+      ctx.fillStyle = "#8b96a8";
+      ctx.font = "16px -apple-system,'PingFang SC','Noto Sans CJK SC',sans-serif";
+      var today = new Date();
+      var dateStr = today.getFullYear() + "-" + String(today.getMonth()+1).padStart(2,"0") + "-" + String(today.getDate()).padStart(2,"0");
+      ctx.fillText(dateStr + " · 共 " + items.length + " 项 · 由指挥官亲手排定", PAD + 6, 106);
+
+      ctx.fillStyle = "#262c36";
+      ctx.fillRect(PAD, HEAD - 26, W - PAD * 2, 1);
+
+      var tw = 168, th = 94, tx = PAD + 58;
+      for(var i = 0; i < items.length; i++){
+        var y = HEAD + i * ROW;
+
+        ctx.fillStyle = i < 3 ? "#ff5a6e" : "#6ad1ff";
+        ctx.font = "bold 28px ui-monospace,Menlo,Consolas,monospace";
+        ctx.textAlign = "right";
+        ctx.fillText(String(i + 1), PAD + 44, y + ROW / 2);
+        ctx.textAlign = "left";
+
+        var ty = y + (ROW - th) / 2;
+        ctx.save();
+        roundRect(ctx, tx, ty, tw, th, 10);
+        ctx.clip();
+        ctx.fillStyle = "#000";
+        ctx.fillRect(tx, ty, tw, th);
+        var im = imgs[i];
+        if(im && im.naturalWidth){
+          var scale = Math.max(tw / im.naturalWidth, th / im.naturalHeight);
+          var dw = im.naturalWidth * scale, dh = im.naturalHeight * scale;
+          ctx.drawImage(im, tx + (tw - dw) / 2, ty + (th - dh) / 2, dw, dh);
+        }else{
+          ctx.fillStyle = "#2a303a";
+          ctx.fillRect(tx, ty, tw, th);
+        }
+        ctx.restore();
+
+        ctx.fillStyle = "#e9eef7";
+        ctx.font = "20px -apple-system,'PingFang SC','Noto Sans CJK SC',sans-serif";
+        var name = clipText(ctx, items[i].name, W - tx - tw - PAD - 24);
+        ctx.fillText(name, tx + tw + 16, y + ROW / 2);
+
+        if(i < items.length - 1){
+          ctx.fillStyle = "rgba(255,255,255,.05)";
+          ctx.fillRect(tx, y + ROW - 1, W - tx - PAD, 1);
+        }
+      }
+
+      ctx.fillStyle = "#6b7686";
+      ctx.font = "14px -apple-system,'PingFang SC','Noto Sans CJK SC',sans-serif";
+      ctx.fillText("图源：战双帕弥什 WIKI · 画册 / 登录界面", PAD + 6, H - 34);
+
+      var a = document.createElement("a");
+      a.download = "战双剧情排行.jpg";
+      a.href = c.toDataURL("image/jpeg", 0.92);
+      a.click();
+      toast("长图已生成");
+    }catch(e){
+      toast("生成失败，换浏览器试试");
+    }finally{
+      imgBtn.disabled = false; imgBtn.textContent = old;
+    }
   });
 
   /* ---------- 启动 ---------- */
