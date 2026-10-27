@@ -30,6 +30,8 @@
     background:#10141b;color:var(--text);border:1px solid var(--line);border-radius:11px;outline:none
   }
   #q:focus{border-color:var(--accent2)}
+  .item.hit{border-color:var(--accent2);box-shadow:0 0 0 1px var(--accent2) inset}
+  .item.hit .name{color:#9fe0ff;font-weight:700}
   button{
     font:inherit;font-size:13px;color:var(--text);background:var(--panel);
     border:1px solid var(--line);border-radius:11px;padding:9px 13px;cursor:pointer
@@ -77,7 +79,7 @@
 <header>
   <h1>战双<span>剧情</span>排行</h1>
   <div class="sub" id="sub">按住右侧 ⋮⋮ 上下拖动，排出你心里的顺序</div>
-  <input id="q" type="search" placeholder="搜索章节名（筛选时不能拖动）" autocomplete="off">
+  <input id="q" type="search" placeholder="搜索章节名，回车跳到下一个" autocomplete="off">
 </header>
 
 <ul id="list"></ul>
@@ -127,16 +129,9 @@
     toastTimer = setTimeout(function(){ toastEl.classList.remove("show"); }, 1500);
   }
 
-  function visibleItems(){
-    if(!query) return items;
-    var q = query.toLowerCase();
-    return items.filter(function(it){ return (it.name || "").toLowerCase().indexOf(q) >= 0; });
-  }
-
   function render(){
     listEl.innerHTML = "";
-    var shown = visibleItems();
-    shown.forEach(function(it, i){
+    items.forEach(function(it, i){
       var li = document.createElement("li");
       li.className = "item";
       li.dataset.id = it.id;
@@ -149,9 +144,8 @@
       li.appendChild(r); li.appendChild(img); li.appendChild(n); li.appendChild(h);
       listEl.appendChild(li);
     });
-    subEl.textContent = query
-      ? ("筛选出 " + shown.length + " / " + items.length + " 项 · 清空搜索才能拖动排序")
-      : (items.length + " 张剧情 · 按住 ⋮⋮ 上下拖动");
+    subEl.textContent = items.length + " 张剧情 · 按住 ⋮⋮ 上下拖动";
+    applyHighlight();
   }
 
   function renumber(){
@@ -189,7 +183,6 @@
   function onDown(ev){
     var h = ev.target.closest ? ev.target.closest(".handle") : null;
     if(!h) return;
-    if(query){ toast("清空搜索后才能拖动"); return; }
     var li = h.closest(".item");
     if(!li) return;
     ev.preventDefault();
@@ -275,9 +268,42 @@
   }
 
   var qEl = document.getElementById("q");
+  var hitIndex = -1;
+
+  function applyHighlight(){
+    var q = query.toLowerCase();
+    for(var i = 0; i < listEl.children.length; i++){
+      var li = listEl.children[i];
+      var nameEl = li.querySelector(".name");
+      var hit = q && nameEl && nameEl.textContent.toLowerCase().indexOf(q) >= 0;
+      li.classList.toggle("hit", !!hit);
+    }
+  }
+
+  function jumpToHit(startAt){
+    if(!query) return;
+    var q = query.toLowerCase();
+    var hits = [];
+    for(var i = 0; i < listEl.children.length; i++){
+      var nm = listEl.children[i].querySelector(".name");
+      if(nm && nm.textContent.toLowerCase().indexOf(q) >= 0) hits.push(listEl.children[i]);
+    }
+    if(!hits.length){ toast("没找到「" + query + "」"); return; }
+    hitIndex = (startAt ? hits.findIndex(function(el){ return el.offsetTop > window.scrollY + 80; }) : -1);
+    if(hitIndex < 0) hitIndex = 0;
+    var el = hits[hitIndex % hits.length];
+    el.scrollIntoView({ behavior:"smooth", block:"center" });
+    toast("找到 " + hits.length + " 项");
+  }
+
   qEl.addEventListener("input", function(){
     query = qEl.value.trim();
-    render();
+    applyHighlight();
+    if(query) jumpToHit(false);
+  });
+
+  qEl.addEventListener("keydown", function(ev){
+    if(ev.key === "Enter"){ ev.preventDefault(); jumpToHit(true); }
   });
 
   listEl.addEventListener("pointerdown", onDown);
