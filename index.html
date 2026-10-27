@@ -187,16 +187,35 @@
     document.body.appendChild(ghost);
     li.style.opacity = ".22";
 
-    drag = { el: li, ghost: ghost, grab: ev.clientY - rect.top };
+    drag = { el: li, ghost: ghost, grab: ev.clientY - rect.top, dir: 0, speed: 0, raf: 0 };
     document.addEventListener("pointermove", onMove, { passive:false });
     document.addEventListener("pointerup", onUp);
     document.addEventListener("pointercancel", onUp);
+  }
+
+  function autoScrollTick(){
+    if(!drag){ return; }
+    if(drag.dir !== 0){ window.scrollBy(0, drag.dir * drag.speed); }
+    drag.raf = requestAnimationFrame(autoScrollTick);
   }
 
   function onMove(ev){
     if(!drag) return;
     ev.preventDefault();
     drag.ghost.style.top = (ev.clientY - drag.grab) + "px";
+
+    // 拖到屏幕上下边缘时自动滚动
+    var EDGE = 96, MAX = 20, vh = window.innerHeight;
+    if(ev.clientY < EDGE){
+      drag.dir = -1;
+      drag.speed = Math.max(3, Math.round((EDGE - ev.clientY) / EDGE * MAX));
+    }else if(ev.clientY > vh - EDGE){
+      drag.dir = 1;
+      drag.speed = Math.max(3, Math.round((ev.clientY - (vh - EDGE)) / EDGE * MAX));
+    }else{
+      drag.dir = 0;
+    }
+    if(!drag.raf){ drag.raf = requestAnimationFrame(autoScrollTick); }
   }
 
   function indexAt(y){
@@ -217,6 +236,7 @@
     var from = kids.indexOf(el);
     var to = indexAt(ev.clientY);
 
+    if(drag.raf) cancelAnimationFrame(drag.raf);
     drag.ghost.remove();
     el.style.opacity = "";
 
