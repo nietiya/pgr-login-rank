@@ -59,6 +59,8 @@
   textarea{width:100%;height:46vh;background:#0a0d11;color:var(--text);border:1px solid var(--line);
     border-radius:10px;padding:10px;font-size:13px;font-family:ui-monospace,Menlo,Consolas,monospace;resize:vertical}
   .dlg-f{padding:0 16px 14px;display:flex;gap:8px}
+  #imgDlg .dlg-b{padding:10px 12px;max-height:62vh;overflow:auto}
+  #imgDlg img{width:100%;border-radius:10px;display:block}
   .dlg-f button{flex:1}
   .toast{position:fixed;left:50%;bottom:96px;transform:translateX(-50%) translateY(10px);
     background:#fff;color:#111;padding:9px 16px;border-radius:999px;font-size:13px;font-weight:700;
@@ -87,6 +89,15 @@
   <div class="dlg-f">
     <button id="copyBtn" class="primary">复制</button>
     <button id="closeDlg">关闭</button>
+  </div>
+</dialog>
+
+<dialog id="imgDlg">
+  <div class="dlg-h" id="imgTitle">长图已生成</div>
+  <div class="dlg-b"><img id="imgPreview" alt="排行榜长图"></div>
+  <div class="dlg-f">
+    <a id="imgSave" class="btn" download="战双剧情排行.jpg" style="flex:1;text-align:center;padding:9px 13px;border-radius:11px;background:var(--accent);color:#fff;font-weight:700;text-decoration:none;font-size:13px">保存图片</a>
+    <button id="imgClose">关闭</button>
   </div>
 </dialog>
 
@@ -363,16 +374,26 @@
       ctx.font = "14px -apple-system,'PingFang SC','Noto Sans CJK SC',sans-serif";
       ctx.fillText("图源：战双帕弥什 WIKI · 画册 / 登录界面", PAD + 6, H - 34);
 
-      var a = document.createElement("a");
-      a.download = "战双剧情排行.jpg";
-      a.href = c.toDataURL("image/jpeg", 0.92);
-      a.click();
+      var dataUrl = c.toDataURL("image/jpeg", 0.92);
+      var pv = document.getElementById("imgPreview");
+      var sv = document.getElementById("imgSave");
+      var ttl = document.getElementById("imgTitle");
+      var dlg2 = document.getElementById("imgDlg");
+      pv.src = dataUrl;
+      sv.href = dataUrl;
+      ttl.textContent = "长图已生成 · " + W + "×" + H;
+      if(dlg2.showModal) dlg2.showModal(); else dlg2.setAttribute("open","");
       toast("长图已生成");
     }catch(e){
       toast("生成失败，换浏览器试试");
     }finally{
       imgBtn.disabled = false; imgBtn.textContent = old;
     }
+  });
+
+  document.getElementById("imgClose").addEventListener("click", function(){
+    var d = document.getElementById("imgDlg");
+    if(d.close) d.close(); else d.removeAttribute("open");
   });
 
   /* ---------- 启动 ---------- */
