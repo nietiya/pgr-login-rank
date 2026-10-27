@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>战双登录界面 · 排行榜</title>
+<meta name="description" content="把《战双帕弥什》的登录界面拖成一个你自己的排行榜">
+<style>
+  :root{
+    --bg:#0b0d11; --panel:#151920; --line:#262c36; --text:#e9eef7; --dim:#8b96a8;
+    --accent:#ff5a6e; --accent2:#6ad1ff;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%}
+  body{
+    background:radial-gradient(1200px 600px at 50% -10%,#1a2230 0%,var(--bg) 55%) fixed;
+    color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Noto Sans CJK SC","Microsoft YaHei",sans-serif;
+    overscroll-behavior:none;padding-bottom:calc(74px + env(safe-area-inset-bottom))
+  }
+  header{
+    position:sticky;top:0;z-index:20;backdrop-filter:blur(14px);
+    background:rgba(11,13,17,.82);border-bottom:1px solid var(--line);
+    padding:12px 14px calc(12px + env(safe-area-inset-top)) 14px
+  }
+  h1{font-size:17px;margin:0;font-weight:700;letter-spacing:.4px}
+  h1 span{color:var(--accent)}
+  .sub{color:var(--dim);font-size:12px;margin-top:4px}
+  button{
+    font:inherit;font-size:13px;color:var(--text);background:var(--panel);
+    border:1px solid var(--line);border-radius:11px;padding:9px 13px;cursor:pointer
+  }
+  button:active{transform:scale(.97)}
+  button.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:700}
+  #list{list-style:none;margin:0;padding:12px;display:flex;flex-direction:column;gap:9px}
+  .item{
+    display:flex;align-items:center;gap:10px;padding:8px;background:var(--panel);
+    border:1px solid var(--line);border-radius:14px;touch-action:pan-y
+  }
+  .item.dragging{position:fixed;z-index:80;pointer-events:none;border-color:var(--accent);
+    box-shadow:0 14px 34px rgba(0,0,0,.6);opacity:.96}
+  .rank{width:28px;text-align:center;font-weight:800;font-size:14px;color:var(--accent2);
+    font-variant-numeric:tabular-nums;flex:none}
+  .thumb{width:96px;height:54px;border-radius:9px;object-fit:cover;background:#000;flex:none}
+  .name{flex:1;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .handle{flex:none;width:34px;height:54px;display:grid;place-items:center;color:var(--dim);
+    font-size:17px;cursor:grab;touch-action:none;letter-spacing:-2px}
+  .empty{margin:48px 18px;padding:34px 18px;text-align:center;color:var(--dim);
+    border:1px dashed var(--line);border-radius:16px;line-height:1.9;font-size:13px}
+  footer{
+    position:fixed;left:0;right:0;bottom:0;z-index:20;padding:10px 12px calc(10px + env(safe-area-inset-bottom)) 12px;
+    background:rgba(11,13,17,.9);backdrop-filter:blur(14px);border-top:1px solid var(--line);display:flex;gap:8px
+  }
+  footer button{flex:1}
+  dialog{border:1px solid var(--line);background:var(--panel);color:var(--text);
+    border-radius:16px;max-width:560px;width:calc(100% - 32px);padding:0}
+  dialog::backdrop{background:rgba(0,0,0,.65)}
+  .dlg-h{padding:14px 16px;border-bottom:1px solid var(--line);font-weight:700;font-size:14px}
+  .dlg-b{padding:12px 16px}
+  textarea{width:100%;height:46vh;background:#0a0d11;color:var(--text);border:1px solid var(--line);
+    border-radius:10px;padding:10px;font-size:13px;font-family:ui-monospace,Menlo,Consolas,monospace;resize:vertical}
+  .dlg-f{padding:0 16px 14px;display:flex;gap:8px}
+  .dlg-f button{flex:1}
+  .toast{position:fixed;left:50%;bottom:96px;transform:translateX(-50%) translateY(10px);
+    background:#fff;color:#111;padding:9px 16px;border-radius:999px;font-size:13px;font-weight:700;
+    opacity:0;pointer-events:none;transition:.2s;z-index:99}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+<header>
+  <h1>战双<span>登录界面</span> · 我的排行榜</h1>
+  <div class="sub" id="sub">按住右侧 ⋮⋮ 上下拖动，排出你心里的顺序</div>
+</header>
+
+<ul id="list"></ul>
+<div id="empty" class="empty" hidden>正在读取图鉴…</div>
+
+<footer>
+  <button id="exportBtn" class="primary">导出排名</button>
+  <button id="resetBtn">恢复默认</button>
+</footer>
+
+<dialog id="dlg">
+  <div class="dlg-h">复制这份排名发给他</div>
+  <div class="dlg-b"><textarea id="out" readonly></textarea></div>
+  <div class="dlg-f">
+    <button id="copyBtn" class="primary">复制</button>
+    <button id="closeDlg">关闭</button>
+  </div>
+</dialog>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  "use strict";
+  var ORDER_KEY = "pgr-login-rank.v1";
+  var listEl = document.getElementById("list");
+  var emptyEl = document.getElementById("empty");
+  var subEl = document.getElementById("sub");
+  var toastEl = document.getElementById("toast");
+  var items = [];
+  var toastTimer = 0;
+
+  function toast(m){
+    toastEl.textContent = m; toastEl.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function(){ toastEl.classList.remove("show"); }, 1500);
+  }
+
+  function render(){
+    listEl.innerHTML = "";
+    items.forEach(function(it, i){
+      var li = document.createElement("li");
+      li.className = "item";
+      li.dataset.id = it.id;
+
+      var r = document.createElement("div"); r.className = "rank"; r.textContent = String(i + 1);
+      var img = document.createElement("img"); img.className = "thumb"; img.src = it.src; img.alt = it.name; img.loading = "lazy";
+      var n = document.createElement("div"); n.className = "name"; n.textContent = it.name;
+      var h = document.createElement("div"); h.className = "handle"; h.textContent = "⋮⋮";
+
+      li.appendChild(r); li.appendChild(img); li.appendChild(n); li.appendChild(h);
+      listEl.appendChild(li);
+    });
+    subEl.textContent = items.length + " 张登录界面 · 按住 ⋮⋮ 上下拖动";
+  }
+
+  function renumber(){
+    for(var i = 0; i < listEl.children.length; i++){
+      var r = listEl.children[i].querySelector(".rank");
+      if(r) r.textContent = String(i + 1);
+    }
+  }
+
+  function saveOrder(){
+    try{
+      localStorage.setItem(ORDER_KEY, JSON.stringify(items.map(function(x){ return x.id; })));
+    }catch(e){}
+  }
+
+  function applySavedOrder(){
+    var raw = null;
+    try{ raw = localStorage.getItem(ORDER_KEY); }catch(e){}
+    if(!raw) return;
+    try{
+      var ids = JSON.parse(raw);
+      if(!Array.isArray(ids)) return;
+      var byId = {};
+      items.forEach(function(it){ byId[it.id] = it; });
+      var ordered = [];
+      ids.forEach(function(id){ if(byId[id]){ ordered.push(byId[id]); delete byId[id]; } });
+      items.forEach(function(it){ if(byId[it.id]) ordered.push(it); });
+      if(ordered.length === items.length) items = ordered;
+    }catch(e){}
+  }
+
+  /* ---------- 拖动 ---------- */
+  var drag = null;
+
+  function onDown(ev){
+    var h = ev.target.closest ? ev.target.closest(".handle") : null;
+    if(!h) return;
+    var li = h.closest(".item");
+    if(!li) return;
+    ev.preventDefault();
+
+    var rect = li.getBoundingClientRect();
+    var ghost = li.cloneNode(true);
+    ghost.classList.add("dragging");
+    ghost.style.left = rect.left + "px";
+    ghost.style.top = rect.top + "px";
+    ghost.style.width = rect.width + "px";
+    ghost.style.margin = "0";
+    document.body.appendChild(ghost);
+    li.style.opacity = ".22";
+
+    drag = { el: li, ghost: ghost, grab: ev.clientY - rect.top };
+    document.addEventListener("pointermove", onMove, { passive:false });
+    document.addEventListener("pointerup", onUp);
+    document.addEventListener("pointercancel", onUp);
+  }
+
+  function onMove(ev){
+    if(!drag) return;
+    ev.preventDefault();
+    drag.ghost.style.top = (ev.clientY - drag.grab) + "px";
+  }
+
+  function indexAt(y){
+    var n = 0;
+    for(var i = 0; i < listEl.children.length; i++){
+      var el = listEl.children[i];
+      if(el === drag.el) continue;
+      var r = el.getBoundingClientRect();
+      if(y > r.top + r.height / 2) n++;
+    }
+    return n;
+  }
+
+  function onUp(ev){
+    if(!drag) return;
+    var el = drag.el;
+    var kids = Array.prototype.slice.call(listEl.children);
+    var from = kids.indexOf(el);
+    var to = indexAt(ev.clientY);
+
+    drag.ghost.remove();
+    el.style.opacity = "";
+
+    kids.splice(from, 1);
+    listEl.insertBefore(el, to >= kids.length ? null : kids[to]);
+
+    drag = null;
+    document.removeEventListener("pointermove", onMove);
+    document.removeEventListener("pointerup", onUp);
+    document.removeEventListener("pointercancel", onUp);
+
+    var order = [];
+    for(var i = 0; i < listEl.children.length; i++){
+      var id = listEl.children[i].dataset.id;
+      for(var k = 0; k < items.length; k++){ if(items[k].id === id){ order.push(items[k]); break; } }
+    }
+    if(order.length === items.length) items = order;
+    renumber(); saveOrder(); toast("已记住这个顺序");
+  }
+
+  listEl.addEventListener("pointerdown", onDown);
+
+  /* ---------- 导出 ---------- */
+  var dlg = document.getElementById("dlg");
+  var out = document.getElementById("out");
+
+  document.getElementById("exportBtn").addEventListener("click", function(){
+    if(!items.length) return;
+    out.value = items.map(function(it, i){ return (i + 1) + ". " + it.name; }).join("\n");
+    if(dlg.showModal) dlg.showModal(); else dlg.setAttribute("open", "");
+  });
+
+  document.getElementById("copyBtn").addEventListener("click", function(){
+    out.select();
+    var ok = false;
+    try{ ok = document.execCommand("copy"); }catch(e){}
+    if(!ok && navigator.clipboard){
+      navigator.clipboard.writeText(out.value).then(function(){ toast("已复制"); });
+      return;
+    }
+    toast(ok ? "已复制" : "请长按手动复制");
+  });
+
+  document.getElementById("closeDlg").addEventListener("click", function(){
+    if(dlg.close) dlg.close(); else dlg.removeAttribute("open");
+  });
+
+  document.getElementById("resetBtn").addEventListener("click", function(){
+    if(!confirm("恢复到默认顺序？你排的会被清掉。")) return;
+    try{ localStorage.removeItem(ORDER_KEY); }catch(e){}
+    location.reload();
+  });
+
+  /* ---------- 启动 ---------- */
+  fetch("data.json", { cache:"no-cache" })
+    .then(function(r){ if(!r.ok) throw new Error("no data"); return r.json(); })
+    .then(function(data){
+      items = data;
+      emptyEl.hidden = true;
+      applySavedOrder();
+      render();
+    })
+    .catch(function(){
+      emptyEl.hidden = false;
+      emptyEl.textContent = "读不到 data.json —— 请通过网址打开这个页面，别直接双击本地文件。";
+    });
+})();
+</script>
+</body>
+</html>
