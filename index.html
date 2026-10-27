@@ -25,11 +25,13 @@
   h1{font-size:17px;margin:0;font-weight:700;letter-spacing:.4px}
   h1 span{color:var(--accent)}
   .sub{color:var(--dim);font-size:12px;margin-top:4px}
+  .searchrow{display:flex;gap:8px;margin-top:10px}
   #q{
-    width:100%;margin-top:10px;padding:10px 12px;font:inherit;font-size:14px;
+    flex:1;width:auto;margin:0;padding:10px 12px;font:inherit;font-size:14px;
     background:#10141b;color:var(--text);border:1px solid var(--line);border-radius:11px;outline:none
   }
   #q:focus{border-color:var(--accent2)}
+  #nextHit{padding:10px 14px;font-size:14px;flex:none;white-space:nowrap}
   .item.hit{border-color:var(--accent2);box-shadow:0 0 0 1px var(--accent2) inset}
   .item.hit .name{color:#9fe0ff;font-weight:700}
   button{
@@ -79,7 +81,10 @@
 <header>
   <h1>战双<span>剧情</span>排行</h1>
   <div class="sub" id="sub">按住右侧 ⋮⋮ 上下拖动，排出你心里的顺序</div>
-  <input id="q" type="search" placeholder="搜索章节名，回车跳到下一个" autocomplete="off">
+  <div class="searchrow">
+    <input id="q" type="search" placeholder="搜索章节名" autocomplete="off">
+    <button id="nextHit" type="button">下一个</button>
+  </div>
 </header>
 
 <ul id="list"></ul>
@@ -280,7 +285,9 @@
     }
   }
 
-  function jumpToHit(startAt){
+  var hitCursor = 0, lastQuery = "";
+
+  function jumpToHit(next){
     if(!query) return;
     var q = query.toLowerCase();
     var hits = [];
@@ -289,11 +296,11 @@
       if(nm && nm.textContent.toLowerCase().indexOf(q) >= 0) hits.push(listEl.children[i]);
     }
     if(!hits.length){ toast("没找到「" + query + "」"); return; }
-    hitIndex = (startAt ? hits.findIndex(function(el){ return el.offsetTop > window.scrollY + 80; }) : -1);
-    if(hitIndex < 0) hitIndex = 0;
-    var el = hits[hitIndex % hits.length];
+    if(query !== lastQuery){ hitCursor = 0; lastQuery = query; }
+    else if(next){ hitCursor = (hitCursor + 1) % hits.length; }
+    var el = hits[hitCursor];
     el.scrollIntoView({ behavior:"smooth", block:"center" });
-    toast("找到 " + hits.length + " 项");
+    toast("第 " + (hitCursor + 1) + " / " + hits.length + " 项");
   }
 
   qEl.addEventListener("input", function(){
@@ -303,8 +310,10 @@
   });
 
   qEl.addEventListener("keydown", function(ev){
-    if(ev.key === "Enter"){ ev.preventDefault(); jumpToHit(true); }
+    if(ev.key === "Enter" && !ev.isComposing){ ev.preventDefault(); jumpToHit(true); }
   });
+
+  document.getElementById("nextHit").addEventListener("click", function(){ jumpToHit(true); });
 
   listEl.addEventListener("pointerdown", onDown);
 
