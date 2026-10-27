@@ -22,3 +22,24 @@
 
 - 图片版权归库洛游戏所有，这里只作同人非商业用途；如需转载请看官方二次创作规约。
 - 想让别人**提交**排名，需要后端（GitHub Pages 只有静态文件）——现在是“各排各的，复制文字发回来”。
+
+## 收集大家的排名（可选，Cloudflare 免费）
+
+1. 打开 <https://dash.cloudflare.com/> → **Workers & Pages** → **Create** → **Worker**，名字随意
+2. 左侧 **KV** → **Create namespace**，名字随意（比如 `pgr-votes`）
+3. 回到 Worker → **Settings → Variables → KV Namespace Bindings** → 添加绑定：
+   - Variable name 填 **`VOTES`**（必须一字不差）
+   - Namespace 选刚才建的那个
+4. 把仓库里 `worker/worker.js` 的内容整段粘进 Worker 编辑器，**Deploy**
+5. 复制 Worker 的地址（形如 `https://pgr-vote.xxx.workers.dev`）
+6. 打开 `index.html`，找到这一行，把地址填进去：
+
+```js
+var VOTE_ENDPOINT = "";   // ← 填这里
+```
+
+7. 重新上传 `index.html` 到 GitHub
+
+之后站点上会多出两个按钮：**提交我的排名**（把顺序发给 Worker）、**看看全网**（看平均名次）。
+
+> 防刷：同一 IP 每天最多 5 票；只存“名次之和 + 次数”，不存个人身份。

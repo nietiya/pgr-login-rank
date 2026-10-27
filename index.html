@@ -35,6 +35,13 @@
   .modes{display:flex;gap:8px;margin-top:10px}
   .modes button{flex:1;padding:9px;font-size:13px;border-radius:10px;background:#10141b}
   .modes button.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:700}
+  .community{display:flex;gap:8px;margin-top:8px}
+  .community button{flex:1;padding:9px;font-size:13px;border-radius:10px;background:#10141b}
+  #globalList{max-height:52vh;overflow:auto}
+  .grow{display:flex;align-items:center;gap:10px;padding:7px 2px;border-bottom:1px solid rgba(255,255,255,.05);font-size:14px}
+  .grow b{width:28px;text-align:right;color:var(--accent2);font-variant-numeric:tabular-nums}
+  .grow span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .grow em{color:var(--dim);font-style:normal;font-size:12px}
   #cmpPanel{padding:12px;display:none}
   #cmpPanel.show{display:block}
   .cmp-progress{color:var(--dim);font-size:12px;text-align:center;margin-bottom:10px}
@@ -100,6 +107,10 @@
     <button id="modeDrag" class="on" type="button">拖拽排序</button>
     <button id="modeCmp" type="button">两两对比</button>
   </div>
+  <div class="community">
+    <button id="submitBtn" type="button">提交我的排名</button>
+    <button id="globalBtn" type="button">看看全网</button>
+  </div>
   <div class="searchrow">
     <input id="q" type="search" placeholder="搜索章节名" autocomplete="off">
     <button id="nextHit" type="button">下一个</button>
@@ -136,6 +147,12 @@
     <button id="copyBtn" class="primary">复制</button>
     <button id="closeDlg">关闭</button>
   </div>
+</dialog>
+
+<dialog id="globalDlg">
+  <div class="dlg-h" id="globalTitle">全网平均名次</div>
+  <div class="dlg-b"><div id="globalList"></div></div>
+  <div class="dlg-f"><button id="globalClose">关闭</button></div>
 </dialog>
 
 <dialog id="lightDlg">
@@ -420,6 +437,70 @@
   });
 
 
+
+
+  /* ---------- 社区投票（Cloudflare Worker） ---------- */
+  // 部署完 Worker 后，把地址填在这里，例如：
+  // var VOTE_ENDPOINT = "https://pgr-vote.你的账号.workers.dev";
+  var VOTE_ENDPOINT = "";
+
+  document.getElementById("submitBtn").addEventListener("click", async function(){
+    if(!VOTE_ENDPOINT){ toast("还没接后端，见 README"); return; }
+    if(!items.length) return;
+    var btn = this, old = btn.textContent;
+    btn.disabled = true; btn.textContent = "提交中…";
+    try{
+      var res = await fetch(VOTE_ENDPOINT.replace(/\/$/, "") + "/vote", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ order: items.map(function(x){ return x.id; }) })
+      });
+      var data = await res.json();
+      if(data.ok){ toast("提交成功，已参与 " + data.votes + " 次投票"); }
+      else { toast("没提交上：" + (data.error || "未知原因")); }
+    }catch(e){
+      toast("连不上投票服务");
+    }finally{
+      btn.disabled = false; btn.textContent = old;
+    }
+  });
+
+  document.getElementById("globalBtn").addEventListener("click", async function(){
+    if(!VOTE_ENDPOINT){ toast("还没接后端，见 README"); return; }
+    var list = document.getElementById("globalList");
+    var ttl = document.getElementById("globalTitle");
+    list.innerHTML = "读取中…";
+    var d = document.getElementById("globalDlg");
+    if(d.showModal) d.showModal(); else d.setAttribute("open","");
+    try{
+      var res = await fetch(VOTE_ENDPOINT.replace(/\/$/, "") + "/stats");
+      var data = await res.json();
+      if(!data.ok) throw new Error("bad");
+      var rows = items.map(function(it){
+        var st = data.items[it.id] || {};
+        return { name:it.name, avg:(st.avg == null ? null : st.avg), count:st.count || 0 };
+      }).filter(function(r){ return r.avg != null; })
+        .sort(function(a,b){ return a.avg - b.avg; });
+
+      ttl.textContent = "全网平均名次 · 共 " + data.votes + " 次投票";
+      if(!rows.length){ list.innerHTML = "还没有人投票。"; return; }
+      list.innerHTML = "";
+      rows.forEach(function(r, i){
+        var div = document.createElement("div");
+        div.className = "grow";
+        div.innerHTML = "<b>" + (i+1) + "</b><span></span><em>" + r.avg + " 名 / " + r.count + " 票</em>";
+        div.querySelector("span").textContent = r.name;
+        list.appendChild(div);
+      });
+    }catch(e){
+      list.textContent = "读不到数据，检查 Worker 地址。";
+    }
+  });
+
+  document.getElementById("globalClose").addEventListener("click", function(){
+    var d = document.getElementById("globalDlg");
+    if(d.close) d.close(); else d.removeAttribute("open");
+  });
 
   /* ---------- 两两对比模式 ---------- */
   var cmpState = null;
