@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>战双登录界面 · 排行榜</title>
-<meta name="description" content="把《战双帕弥什》的登录界面拖成一个你自己的排行榜">
+<title>战双剧情排行</title>
+<meta name="description" content="把《战双帕弥什》的剧情拖成一个你自己的排行榜">
 <style>
   :root{
     --bg:#0b0d11; --panel:#151920; --line:#262c36; --text:#e9eef7; --dim:#8b96a8;
@@ -68,7 +68,7 @@
 </head>
 <body>
 <header>
-  <h1>战双<span>登录界面</span> · 我的排行榜</h1>
+  <h1>战双<span>剧情</span>排行</h1>
   <div class="sub" id="sub">按住右侧 ⋮⋮ 上下拖动，排出你心里的顺序</div>
 </header>
 
@@ -123,7 +123,7 @@
       li.appendChild(r); li.appendChild(img); li.appendChild(n); li.appendChild(h);
       listEl.appendChild(li);
     });
-    subEl.textContent = items.length + " 张登录界面 · 按住 ⋮⋮ 上下拖动";
+    subEl.textContent = items.length + " 张剧情 · 按住 ⋮⋮ 上下拖动";
   }
 
   function renumber(){
