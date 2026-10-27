@@ -107,10 +107,6 @@
     <button id="modeDrag" class="on" type="button">拖拽排序</button>
     <button id="modeCmp" type="button">两两对比</button>
   </div>
-  <div class="community">
-    <button id="shareBtn" type="button">生成分享码</button>
-    <button id="importBtn" type="button">导入分享码</button>
-  </div>
   <div class="searchrow">
     <input id="q" type="search" placeholder="搜索章节名" autocomplete="off">
     <button id="nextHit" type="button">下一个</button>
@@ -146,24 +142,6 @@
   <div class="dlg-f">
     <button id="copyBtn" class="primary">复制</button>
     <button id="closeDlg">关闭</button>
-  </div>
-</dialog>
-
-<dialog id="codeDlg">
-  <div class="dlg-h" id="codeTitle">分享码</div>
-  <div class="dlg-b"><textarea id="codeBox" readonly></textarea></div>
-  <div class="dlg-f">
-    <button id="codeCopy" class="primary">复制</button>
-    <button id="codeClose">关闭</button>
-  </div>
-</dialog>
-
-<dialog id="inDlg">
-  <div class="dlg-h">粘贴别人的分享码</div>
-  <div class="dlg-b"><textarea id="inBox" placeholder="把分享码粘到这里"></textarea></div>
-  <div class="dlg-f">
-    <button id="inOk" class="primary">应用</button>
-    <button id="inClose">取消</button>
   </div>
 </dialog>
 
@@ -450,89 +428,6 @@
 
 
 
-
-  /* ---------- 分享码（无需服务器） ---------- */
-  function checksum(arr){
-    var t = 0;
-    for(var i = 0; i < arr.length; i++) t = (t * 31 + arr[i]) % 1296;
-    return t.toString(36).padStart(2, "0");
-  }
-
-  function makeCode(){
-    var byId = {};
-    items.forEach(function(it, i){ byId[it.id] = i; });
-    var idx = items.map(function(it){ return byId[it.id]; });
-    var body = idx.map(function(n){ return n.toString(36).padStart(2, "0"); }).join("");
-    return "v1" + body + checksum(idx);
-  }
-
-  function applyCode(code){
-    code = (code || "").trim().replace(/\s+/g, "");
-    if(code.indexOf("v1") !== 0) return "不是有效的分享码";
-    code = code.slice(2);
-    if(code.length < 4) return "码太短了";
-    var sum = code.slice(-2);
-    var body = code.slice(0, -2);
-    if(body.length % 2 !== 0) return "码不完整";
-    var idx = [];
-    for(var i = 0; i < body.length; i += 2){
-      var n = parseInt(body.substr(i, 2), 36);
-      if(isNaN(n)) return "码里有坏字符";
-      idx.push(n);
-    }
-    if(idx.length !== items.length) return "这张榜的项数和码对不上";
-    if(checksum(idx) !== sum) return "校验失败，码可能被截断了";
-    var seen = {}, out = [];
-    for(var k = 0; k < idx.length; k++){
-      if(idx[k] < 0 || idx[k] >= items.length || seen[idx[k]]) return "码里的序号有问题";
-      seen[idx[k]] = 1;
-      out.push(items[idx[k]]);
-    }
-    items = out;
-    render(); saveOrder();
-    return "";
-  }
-
-  var codeDlg = document.getElementById("codeDlg");
-  var codeBox = document.getElementById("codeBox");
-
-  document.getElementById("shareBtn").addEventListener("click", function(){
-    if(items.length < 2){ toast("至少两项"); return; }
-    codeBox.value = makeCode();
-    if(codeDlg.showModal) codeDlg.showModal(); else codeDlg.setAttribute("open","");
-  });
-
-  document.getElementById("codeCopy").addEventListener("click", function(){
-    codeBox.select();
-    var ok = false;
-    try{ ok = document.execCommand("copy"); }catch(e){}
-    if(!ok && navigator.clipboard){ navigator.clipboard.writeText(codeBox.value).then(function(){ toast("已复制"); }); return; }
-    toast(ok ? "已复制" : "请长按手动复制");
-  });
-
-  document.getElementById("codeClose").addEventListener("click", function(){
-    if(codeDlg.close) codeDlg.close(); else codeDlg.removeAttribute("open");
-  });
-
-  var inDlg = document.getElementById("inDlg");
-  var inBox = document.getElementById("inBox");
-
-  document.getElementById("importBtn").addEventListener("click", function(){
-    inBox.value = "";
-    if(inDlg.showModal) inDlg.showModal(); else inDlg.setAttribute("open","");
-  });
-
-  document.getElementById("inOk").addEventListener("click", function(){
-    var err = applyCode(inBox.value);
-    if(err){ toast(err); return; }
-    if(inDlg.close) inDlg.close(); else inDlg.removeAttribute("open");
-    window.scrollTo({ top: 0, behavior: "smooth" });
-    toast("已套用这张榜");
-  });
-
-  document.getElementById("inClose").addEventListener("click", function(){
-    if(inDlg.close) inDlg.close(); else inDlg.removeAttribute("open");
-  });
 
   /* ---------- 两两对比模式 ---------- */
   var cmpState = null;
