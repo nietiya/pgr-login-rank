@@ -128,10 +128,17 @@
 
   /* ---------- 视觉打磨 ---------- */
   body{
-    background:
-      radial-gradient(900px 420px at 50% -8%, rgba(255,90,110,.10), transparent 60%),
-      radial-gradient(700px 380px at 100% 0%, rgba(106,209,255,.08), transparent 60%),
-      #0b0d11 fixed;
+    background-color:#0b0d11;
+    background-image:
+      linear-gradient(180deg, rgba(9,11,15,.86) 0%, rgba(9,11,15,.92) 55%, rgba(9,11,15,.96) 100%),
+      url("bg.jpg");
+    background-position:center top, center top;
+    background-size:cover, cover;
+    background-repeat:no-repeat, no-repeat;
+    background-attachment:scroll, scroll;
+  }
+  @media (min-width:900px){
+    body{ background-attachment:fixed, fixed; }
   }
   header{
     background:linear-gradient(180deg, rgba(22,27,36,.96), rgba(11,13,17,.88));
