@@ -268,6 +268,15 @@
   <div class="dlg-f"><button id="lightClose" class="primary">保存并关闭</button></div>
 </dialog>
 
+<dialog id="bracketDlg">
+  <div class="dlg-h" id="bracketTitle">赛程图</div>
+  <div class="dlg-b"><img id="bracketImg" alt="赛程图"></div>
+  <div class="dlg-f">
+    <a id="bracketSave" download="战双剧情排行-赛程.jpg" style="flex:1;text-align:center;padding:9px 13px;border-radius:11px;background:var(--accent);color:#fff;font-weight:700;text-decoration:none;font-size:13px">保存图片</a>
+    <button id="bracketClose">关闭</button>
+  </div>
+</dialog>
+
 <dialog id="imgDlg">
   <div class="dlg-h" id="imgTitle">长图已生成</div>
   <div class="dlg-b"><img id="imgPreview" alt="排行榜长图"></div>
@@ -657,7 +666,7 @@
   });
 
 
-  /* ---------- 选冠军（单败淘汰） ---------- */
+  /* ---------- 选冠军（单败淘汰）+ 赛程图 ---------- */
   var tour = null;
   var elTour = document.getElementById("tourPanel");
 
@@ -665,15 +674,32 @@
     if(items.length < 4){ toast("至少四项才好比赛"); return; }
     var pool = items.slice().sort(function(){ return Math.random() - 0.5; });
     var size = Math.min(pool.length, 16);
-    // 若不是 2 的幂，取最近的 2 的幂
     while(size & (size - 1)) size--;
     size = Math.max(4, size);
-    tour = { list: pool.slice(0, size), next: [], round: size, match: 1, total: size - 1 };
+    var players = pool.slice(0, size);
+    tour = {
+      size: size,
+      rounds: [],     // rounds[k] = [{a,b,w}]  (a/b = item id, w = id)
+      list: players.slice(),
+      next: [],
+      idx: 0
+    };
+    // 建立第一轮
+    var first = [];
+    for(var i = 0; i < players.length; i += 2){
+      first.push({ a: players[i].id, b: players[i + 1] ? players[i + 1].id : null, w: null });
+    }
+    tour.rounds.push(first);
     elTour.classList.add("show");
     listEl.style.display = "none";
     document.querySelector(".searchrow").style.display = "none";
     drawTourMatch();
   }
+
+  function byId(id){ return items.filter(function(x){ return x.id === id; })[0]; }
+
+  function curRound(){ return tour.rounds[tour.rounds.length - 1]; }
+  function curMatchIndex(){ return curRound().findIndex(function(m){ return !m.w; }); }
 
   function roundName(n){
     if(n === 2) return "决赛";
@@ -685,58 +711,218 @@
 
   function drawTourMatch(){
     if(!tour) return;
-    if(tour.list.length === 1){
-      finishTournament();
-      return;
-    }
-    if(tour.list.length === 0){
-      tour.list = tour.next;
-      tour.next = [];
-      tour.round = tour.list.length;
-      tour.match = 1;
+    var mi = curMatchIndex();
+    if(mi < 0){
+      // 本轮结束，生成下一轮
+      var winners = curRound().map(function(m){ return m.w; });
+      if(winners.length <= 1){ finishTournament(); return; }
+      var nr = [];
+      for(var i = 0; i < winners.length; i += 2){
+        nr.push({ a: winners[i], b: winners[i + 1] || null, w: winners[i + 1] ? null : winners[i] });
+      }
+      tour.rounds.push(nr);
       drawTourMatch();
       return;
     }
-    if(tour.list.length === 1){ finishTournament(); return; }
-    var a = tour.list[0], b = tour.list[1];
+    var m = curRound()[mi];
+    var a = byId(m.a), b = byId(m.b);
     document.getElementById("tImgA").src = a.src;
     document.getElementById("tNameA").textContent = a.name;
-    document.getElementById("tImgB").src = b.src;
-    document.getElementById("tNameB").textContent = b.name;
+    if(b){
+      document.getElementById("tImgB").src = b.src;
+      document.getElementById("tNameB").textContent = b.name;
+      document.getElementById("tCardB").style.display = "";
+    }else{
+      document.getElementById("tCardB").style.display = "none";
+    }
     document.getElementById("tourProgress").textContent =
-      roundName(tour.round) + " · 第 " + tour.match + " 场";
+      roundName(curRound().length * 2) + " · 第 " + (mi + 1) + " 场";
   }
 
   function pickTour(which){
     if(!tour) return;
-    var a = tour.list[0], b = tour.list[1];
-    var win = (which === "a") ? a : b;
-    tour.next.push(win);
-    tour.list = tour.list.slice(2);
-    tour.match++;
+    var mi = curMatchIndex();
+    if(mi < 0) return;
+    var m = curRound()[mi];
+    m.w = (which === "a" || !m.b) ? m.a : m.b;
     drawTourMatch();
   }
 
   function skipTourMatch(){
     if(!tour) return;
-    var a = tour.list[0], b = tour.list[1];
-    tour.next.push(Math.random() < 0.5 ? a : b);
-    tour.list = tour.list.slice(2);
-    tour.match++;
+    var mi = curMatchIndex();
+    if(mi < 0) return;
+    var m = curRound()[mi];
+    m.w = (!m.b || Math.random() < 0.5) ? m.a : m.b;
     drawTourMatch();
   }
 
-  function finishTournament(){
-    var champ = tour.list[0];
+  function quitTournament(){
     tour = null;
     elTour.classList.remove("show");
     listEl.style.display = "";
     document.querySelector(".searchrow").style.display = "";
     setMode("drag");
-    var idx = items.findIndex(function(x){ return x.id === champ.id; });
-    if(idx > 0){ items.splice(idx, 1); items.unshift(champ); render(); saveOrder(); }
-    toast("冠军：" + champ.name);
-    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function finishTournament(){
+    var finalRound = tour.rounds[tour.rounds.length - 1];
+    var champId = finalRound[0].w;
+    var rounds = tour.rounds;
+    quitTournament();
+    drawBracket(rounds, champId);
+  }
+
+  /* 赛程图（canvas，左→右） */
+  function drawBracket(rounds, champId){
+    var CARD_W = 250, CARD_H = 56, GAP_Y = 26, COL = 300, PAD = 24, HEAD = 100;
+    var leafN = rounds[0].length * 2;
+    var H = HEAD + leafN * (CARD_H + GAP_Y) + PAD * 2;
+
+    var pos = [];
+    pos[0] = [];
+    for(var i = 0; i < rounds[0].length; i++){
+      var top = HEAD + i * 2 * (CARD_H + GAP_Y);
+      pos[0].push({ ya: top, yb: top + CARD_H + GAP_Y });
+    }
+    for(var k = 1; k < rounds.length; k++){
+      pos[k] = [];
+      for(var j = 0; j < rounds[k].length; j++){
+        var pa = pos[k-1][j*2], pb = pos[k-1][j*2+1];
+        var y = pa ? (pb ? (pa.ya + pb.ya) / 2 : pa.ya) : 0;
+        pos[k].push({ ya: y, yb: y });
+      }
+    }
+
+    var W = PAD * 2 + (rounds.length + 1) * COL + CARD_W;
+    var canvas = document.createElement("canvas");
+    canvas.width = W; canvas.height = H;
+    var ctx = canvas.getContext("2d");
+    var xOf = function(k){ return PAD + k * COL; };
+
+    function byId2(id){ return byId(id); }
+
+    var cache = {};
+    function preload(ids){
+      return Promise.all(ids.map(function(id){
+        return new Promise(function(res){
+          var it = byId2(id);
+          if(!it){ res(); return; }
+          var im = new Image();
+          im.onload = function(){ cache[id] = im; res(); };
+          im.onerror = function(){ res(); };
+          im.src = it.thumb || it.src;
+        });
+      }));
+    }
+
+    function drawCard(x, y, it, isChamp){
+      ctx.save();
+      roundRect(ctx, x, y, CARD_W, CARD_H, 10);
+      ctx.fillStyle = isChamp ? "rgba(255,90,140,.22)" : "rgba(32,23,46,.94)";
+      ctx.fill();
+      ctx.strokeStyle = isChamp ? "#ff5a8c" : "rgba(180,140,255,.30)";
+      ctx.lineWidth = isChamp ? 2.5 : 1;
+      ctx.stroke();
+      ctx.restore();
+
+      var sq = CARD_H - 12;
+      var img = it ? cache[it.id] : null;
+      ctx.save();
+      roundRect(ctx, x + 6, y + 6, sq, sq, 6);
+      ctx.clip();
+      ctx.fillStyle = "#191022";
+      ctx.fillRect(x + 6, y + 6, sq, sq);
+      if(img && img.width){
+        var sc = Math.max(sq / img.width, sq / img.height);
+        var dw = img.width * sc, dh = img.height * sc;
+        ctx.drawImage(img, x + 6 + (sq - dw) / 2, y + 6 + (sq - dh) / 2, dw, dh);
+      }
+      ctx.restore();
+
+      ctx.textBaseline = "middle";
+      ctx.fillStyle = "#efe6ff";
+      ctx.font = "16px -apple-system,'PingFang SC','Noto Sans CJK SC',sans-serif";
+      var label = it ? it.name : "—";
+      var maxW = CARD_W - sq - 26;
+      var t = label;
+      while(ctx.measureText(t).width > maxW && t.length > 1) t = t.slice(0, -1);
+      if(t !== label) t = t.slice(0, -1) + "…";
+      ctx.fillText(t, x + 6 + sq + 10, y + CARD_H / 2);
+    }
+
+    function line(x1, y1, x2, y2, color){
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2;
+      var mx = (x1 + x2) / 2;
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(mx, y1);
+      ctx.lineTo(mx, y2);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+    }
+
+    (async function(){
+      var ids = [];
+      rounds.forEach(function(rd){ rd.forEach(function(m){
+        if(m.a) ids.push(m.a); if(m.b) ids.push(m.b);
+      }); });
+      await preload(ids);
+
+      var bg = ctx.createLinearGradient(0, 0, W, H);
+      bg.addColorStop(0, "#1b1026"); bg.addColorStop(0.55, "#120a1a"); bg.addColorStop(1, "#0a0610");
+      ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+
+      ctx.fillStyle = "#d9bcff";
+      ctx.font = "bold 34px -apple-system,'PingFang SC','Noto Sans CJK SC',sans-serif";
+      ctx.fillText("战双剧情排行 · 冠军杯", PAD + 2, 48);
+      ctx.fillStyle = "#7d6a99";
+      ctx.font = "15px -apple-system,'PingFang SC','Noto Sans CJK SC',sans-serif";
+      ctx.fillText(leafN + " 强单败淘汰 · 冠军由你亲手选出", PAD + 4, 76);
+
+      // 连线
+      for(var k = 0; k < rounds.length - 1; k++){
+        for(var j = 0; j < rounds[k].length; j++){
+          var m = rounds[k][j];
+          if(!m.w) continue;
+          var y = (m.w === m.a ? pos[k][j].ya : pos[k][j].yb) + CARD_H / 2;
+          var py = pos[k+1][Math.floor(j / 2)].ya + CARD_H / 2;
+          line(xOf(k) + CARD_W, y, xOf(k+1), py, "rgba(178,138,255,.35)");
+        }
+      }
+
+      // 节点
+      for(var k2 = 0; k2 < rounds.length; k2++){
+        for(var i2 = 0; i2 < rounds[k2].length; i2++){
+          var mm = rounds[k2][i2];
+          if(mm.a) drawCard(xOf(k2), pos[k2][i2].ya, byId2(mm.a), false);
+          if(mm.b) drawCard(xOf(k2), pos[k2][i2].yb, byId2(mm.b), false);
+        }
+      }
+
+      // 冠军
+      var champ = byId2(champId);
+      var cx = xOf(rounds.length);
+      var cy = H / 2 - CARD_H / 2;
+      var last = rounds[rounds.length - 1][0];
+      if(last && last.w){
+        line(xOf(rounds.length - 1) + CARD_W, pos[rounds.length - 1][0].ya + CARD_H / 2,
+             cx, cy + CARD_H / 2, "rgba(255,90,140,.65)");
+      }
+      drawCard(cx, cy, champ, true);
+
+      ctx.fillStyle = "#ffd76e";
+      ctx.font = "bold 18px -apple-system,'PingFang SC','Noto Sans CJK SC',sans-serif";
+      ctx.fillText("冠军", cx + 4, cy - 22);
+
+      var url = canvas.toDataURL("image/jpeg", 0.92);
+      document.getElementById("bracketImg").src = url;
+      document.getElementById("bracketSave").href = url;
+      document.getElementById("bracketTitle").textContent = "赛程图 · 冠军：" + (champ ? champ.name : "—");
+      var d = document.getElementById("bracketDlg");
+      if(d.showModal) d.showModal(); else d.setAttribute("open","");
+    })();
   }
 
   document.getElementById("modeTour").addEventListener("click", function(){
@@ -746,12 +932,11 @@
   document.getElementById("tCardA").addEventListener("click", function(){ pickTour("a"); });
   document.getElementById("tCardB").addEventListener("click", function(){ pickTour("b"); });
   document.getElementById("tSkip").addEventListener("click", function(){ skipTourMatch(); });
-  document.getElementById("tQuit").addEventListener("click", function(){
-    tour = null;
-    elTour.classList.remove("show");
-    listEl.style.display = "";
-    document.querySelector(".searchrow").style.display = "";
-    setMode("drag");
+  document.getElementById("tQuit").addEventListener("click", function(){ quitTournament(); });
+
+  document.getElementById("bracketClose").addEventListener("click", function(){
+    var d = document.getElementById("bracketDlg");
+    if(d.close) d.close(); else d.removeAttribute("open");
   });
 
   /* ---------- 导出长图 ---------- */
