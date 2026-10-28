@@ -578,6 +578,10 @@
 
   function setMode(mode){
     var dragMode = (mode === "drag");
+    if(typeof tour !== "undefined" && tour){
+      tour = null;
+      document.getElementById("tourPanel").classList.remove("show");
+    }
     elPanel.classList.toggle("show", !dragMode);
     listEl.style.display = dragMode ? "" : "none";
     document.querySelector(".searchrow").style.display = dragMode ? "" : "none";
@@ -695,9 +699,9 @@
     }
     if(tour.list.length === 1){ finishTournament(); return; }
     var a = tour.list[0], b = tour.list[1];
-    document.getElementById("tImgA").src = a.thumb || a.src;
+    document.getElementById("tImgA").src = a.src;
     document.getElementById("tNameA").textContent = a.name;
-    document.getElementById("tImgB").src = b.thumb || b.src;
+    document.getElementById("tImgB").src = b.src;
     document.getElementById("tNameB").textContent = b.name;
     document.getElementById("tourProgress").textContent =
       roundName(tour.round) + " · 第 " + tour.match + " 场";
