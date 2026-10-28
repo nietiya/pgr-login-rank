@@ -191,6 +191,9 @@
     text-align:center;font-size:12px;color:#7d8899;letter-spacing:.16em;
     margin:6px 0 2px;text-shadow:0 0 18px rgba(124,196,255,.18)
   }
+
+  #tourPanel{padding:12px;display:none}
+  #tourPanel.show{display:block}
 </style>
 </head>
 <body>
@@ -201,6 +204,7 @@
   <div class="modes">
     <button id="modeDrag" class="on" type="button">拖拽排序</button>
     <button id="modeCmp" type="button">两两对比</button>
+    <button id="modeTour" type="button">选冠军</button>
   </div>
   <div class="searchrow">
     <input id="q" type="search" placeholder="搜索章节名" autocomplete="off">
@@ -222,6 +226,18 @@
   <div class="cmp-actions2">
     <button id="undoCmp">← 返回上一张</button>
     <button id="skipCmp">跳过</button>
+  </div>
+</div>
+
+<div id="tourPanel">
+  <div class="cmp-progress" id="tourProgress">—</div>
+  <div class="cmp-grid">
+    <div class="cmp-card" id="tCardA"><img id="tImgA" alt=""><div class="t" id="tNameA"></div></div>
+    <div class="cmp-card" id="tCardB"><img id="tImgB" alt=""><div class="t" id="tNameB"></div></div>
+  </div>
+  <div class="cmp-actions2">
+    <button id="tQuit">退出比赛</button>
+    <button id="tSkip">这局跳过</button>
   </div>
 </div>
 
@@ -634,6 +650,104 @@
   document.getElementById("skipCmp").addEventListener("click", function(){
     if(!cmpState) return;
     cmpState.i++; renderCompareCard();
+  });
+
+
+  /* ---------- 选冠军（单败淘汰） ---------- */
+  var tour = null;
+  var elTour = document.getElementById("tourPanel");
+
+  function startTournament(){
+    if(items.length < 4){ toast("至少四项才好比赛"); return; }
+    var pool = items.slice().sort(function(){ return Math.random() - 0.5; });
+    var size = Math.min(pool.length, 16);
+    // 若不是 2 的幂，取最近的 2 的幂
+    while(size & (size - 1)) size--;
+    size = Math.max(4, size);
+    tour = { list: pool.slice(0, size), next: [], round: size, match: 1, total: size - 1 };
+    elTour.classList.add("show");
+    listEl.style.display = "none";
+    document.querySelector(".searchrow").style.display = "none";
+    drawTourMatch();
+  }
+
+  function roundName(n){
+    if(n === 2) return "决赛";
+    if(n === 4) return "半决赛";
+    if(n === 8) return "八强";
+    if(n === 16) return "十六强";
+    return n + " 强";
+  }
+
+  function drawTourMatch(){
+    if(!tour) return;
+    if(tour.list.length === 1){
+      finishTournament();
+      return;
+    }
+    if(tour.list.length === 0){
+      tour.list = tour.next;
+      tour.next = [];
+      tour.round = tour.list.length;
+      tour.match = 1;
+      drawTourMatch();
+      return;
+    }
+    if(tour.list.length === 1){ finishTournament(); return; }
+    var a = tour.list[0], b = tour.list[1];
+    document.getElementById("tImgA").src = a.thumb || a.src;
+    document.getElementById("tNameA").textContent = a.name;
+    document.getElementById("tImgB").src = b.thumb || b.src;
+    document.getElementById("tNameB").textContent = b.name;
+    document.getElementById("tourProgress").textContent =
+      roundName(tour.round) + " · 第 " + tour.match + " 场";
+  }
+
+  function pickTour(which){
+    if(!tour) return;
+    var a = tour.list[0], b = tour.list[1];
+    var win = (which === "a") ? a : b;
+    tour.next.push(win);
+    tour.list = tour.list.slice(2);
+    tour.match++;
+    drawTourMatch();
+  }
+
+  function skipTourMatch(){
+    if(!tour) return;
+    var a = tour.list[0], b = tour.list[1];
+    tour.next.push(Math.random() < 0.5 ? a : b);
+    tour.list = tour.list.slice(2);
+    tour.match++;
+    drawTourMatch();
+  }
+
+  function finishTournament(){
+    var champ = tour.list[0];
+    tour = null;
+    elTour.classList.remove("show");
+    listEl.style.display = "";
+    document.querySelector(".searchrow").style.display = "";
+    setMode("drag");
+    var idx = items.findIndex(function(x){ return x.id === champ.id; });
+    if(idx > 0){ items.splice(idx, 1); items.unshift(champ); render(); saveOrder(); }
+    toast("冠军：" + champ.name);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  document.getElementById("modeTour").addEventListener("click", function(){
+    setMode("drag");
+    startTournament();
+  });
+  document.getElementById("tCardA").addEventListener("click", function(){ pickTour("a"); });
+  document.getElementById("tCardB").addEventListener("click", function(){ pickTour("b"); });
+  document.getElementById("tSkip").addEventListener("click", function(){ skipTourMatch(); });
+  document.getElementById("tQuit").addEventListener("click", function(){
+    tour = null;
+    elTour.classList.remove("show");
+    listEl.style.display = "";
+    document.querySelector(".searchrow").style.display = "";
+    setMode("drag");
   });
 
   /* ---------- 导出长图 ---------- */
