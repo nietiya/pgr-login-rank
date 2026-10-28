@@ -195,9 +195,9 @@
   #tourPanel{padding:12px;display:none}
   #tourPanel.show{display:block}
 
-  #bracketDlg{max-width:96vw;width:96vw}
-  #bracketDlg .dlg-b{max-height:74vh;overflow:auto;padding:8px}
-  #bracketDlg img{width:100%;height:auto;border-radius:10px;display:block}
+  #bracketDlg{width:auto;max-width:96vw}
+  #bracketDlg .dlg-b{padding:8px;display:flex;justify-content:center;overflow:hidden}
+  #bracketDlg img{width:auto;height:auto;max-width:90vw;max-height:70vh;object-fit:contain;border-radius:10px;display:block}
 </style>
 </head>
 <body>
@@ -779,7 +779,7 @@
 
   /* 赛程图（canvas，左右对称，冠军居中） */
   function drawBracket(rounds, champId){
-    var CARD_W = 230, CARD_H = 54, LEAF_GAP = 22, COL = 270, PAD = 28, HEAD = 104;
+    var CARD_W = 186, CARD_H = 48, LEAF_GAP = 16, COL = 214, PAD = 22, HEAD = 92;
     var R = rounds.length;              // 轮数，例如 4（16→8→4→2）
     var n0 = rounds[0].length;          // 第一轮场次数，例如 8
     var half = n0 / 2;                  // 每边第一轮的场次数，例如 4
