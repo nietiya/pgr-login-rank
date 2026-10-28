@@ -83,7 +83,7 @@
   .empty{margin:48px 18px;padding:34px 18px;text-align:center;color:var(--dim);
     border:1px dashed var(--line);border-radius:16px;line-height:1.9;font-size:13px}
   footer{
-    position:fixed;left:50%;transform:translateX(-50%);max-width:900px;width:100%;bottom:0;z-index:20;padding:10px 12px calc(10px + env(safe-area-inset-bottom)) 12px;
+    position:fixed;left:50%;transform:translateX(-50%);max-width:1200px;width:100%;bottom:0;z-index:20;padding:10px 12px calc(10px + env(safe-area-inset-bottom)) 12px;
     background:rgba(11,13,17,.9);backdrop-filter:blur(14px);border-top:1px solid var(--line);display:flex;gap:8px
   }
   footer button{flex:1}
@@ -104,9 +104,9 @@
   .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 
   /* ---------- 桌面端 ---------- */
-  @media (min-width:900px){
+  @media (min-width:1000px){
     body{
-      max-width:900px;margin:0 auto;
+      max-width:1200px;margin:0 auto;
       box-shadow:0 0 90px rgba(0,0,0,.65);
       border-left:1px solid rgba(255,255,255,.04);
       border-right:1px solid rgba(255,255,255,.04);
@@ -137,7 +137,7 @@
     background-repeat:no-repeat, no-repeat;
     background-attachment:scroll, scroll;
   }
-  @media (min-width:900px){
+  @media (min-width:1000px){
     body{ background-attachment:fixed, fixed; }
   }
   header{
@@ -773,36 +773,43 @@
     drawBracket(rounds, champId);
   }
 
-  /* 赛程图（canvas，左→右） */
+  /* 赛程图（canvas，左右对称，冠军居中） */
   function drawBracket(rounds, champId){
-    var CARD_W = 250, CARD_H = 56, GAP_Y = 26, COL = 300, PAD = 24, HEAD = 100;
-    var leafN = rounds[0].length * 2;
-    var H = HEAD + leafN * (CARD_H + GAP_Y) + PAD * 2;
+    var CARD_W = 230, CARD_H = 54, LEAF_GAP = 22, COL = 270, PAD = 28, HEAD = 104;
+    var R = rounds.length;              // 轮数，例如 4（16→8→4→2）
+    var n0 = rounds[0].length;          // 第一轮场次数，例如 8
+    var half = n0 / 2;                  // 每边第一轮的场次数，例如 4
+    var perSide = half * 2;             // 每边选手数，例如 8
 
+    var H = HEAD + perSide * (CARD_H + LEAF_GAP) + PAD;
+    var W = 2 * (PAD + (R - 1) * COL + CARD_W) + 40;
+    var cxCenter = W / 2;
+
+    var canvas = document.createElement("canvas");
+    canvas.width = W; canvas.height = H;
+    var ctx = canvas.getContext("2d");
+
+    // 每边第 k 轮的卡片 y 位置（左右各自独立，但同一套 y）
     var pos = [];
     pos[0] = [];
-    for(var i = 0; i < rounds[0].length; i++){
-      var top = HEAD + i * 2 * (CARD_H + GAP_Y);
-      pos[0].push({ ya: top, yb: top + CARD_H + GAP_Y });
+    for(var i = 0; i < half; i++){
+      var top = HEAD + i * 2 * (CARD_H + LEAF_GAP);
+      pos[0].push({ ya: top, yb: top + CARD_H + LEAF_GAP });
     }
-    for(var k = 1; k < rounds.length; k++){
+    for(var k = 1; k < R - 1; k++){
       pos[k] = [];
-      for(var j = 0; j < rounds[k].length; j++){
+      for(var j = 0; j < pos[k-1].length / 2; j++){
         var pa = pos[k-1][j*2], pb = pos[k-1][j*2+1];
         var y = pa ? (pb ? (pa.ya + pb.ya) / 2 : pa.ya) : 0;
         pos[k].push({ ya: y, yb: y });
       }
     }
 
-    var W = PAD * 2 + (rounds.length + 1) * COL + CARD_W;
-    var canvas = document.createElement("canvas");
-    canvas.width = W; canvas.height = H;
-    var ctx = canvas.getContext("2d");
-    var xOf = function(k){ return PAD + k * COL; };
-
-    function byId2(id){ return byId(id); }
+    function xOfLeft(k){ return PAD + k * COL; }
+    function xOfRight(k){ return W - PAD - CARD_W - k * COL; }
 
     var cache = {};
+    function byId2(id){ return byId(id); }
     function preload(ids){
       return Promise.all(ids.map(function(id){
         return new Promise(function(res){
@@ -816,9 +823,19 @@
       }));
     }
 
+    function rr(x, y, w, h, r){
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.arcTo(x + w, y, x + w, y + h, r);
+      ctx.arcTo(x + w, y + h, x, y + h, r);
+      ctx.arcTo(x, y + h, x, y, r);
+      ctx.arcTo(x, y, x + w, y, r);
+      ctx.closePath();
+    }
+
     function drawCard(x, y, it, isChamp){
       ctx.save();
-      roundRect(ctx, x, y, CARD_W, CARD_H, 10);
+      rr(x, y, CARD_W, CARD_H, 10);
       ctx.fillStyle = isChamp ? "rgba(255,90,140,.22)" : "rgba(32,23,46,.94)";
       ctx.fill();
       ctx.strokeStyle = isChamp ? "#ff5a8c" : "rgba(180,140,255,.30)";
@@ -826,23 +843,22 @@
       ctx.stroke();
       ctx.restore();
 
-      var sq = CARD_H - 12;
-      var img = it ? cache[it.id] : null;
+      var sq = CARD_H - 12, img = it ? cache[it.id] : null;
       ctx.save();
-      roundRect(ctx, x + 6, y + 6, sq, sq, 6);
+      rr(x + 6, y + 6, sq, sq, 6);
       ctx.clip();
       ctx.fillStyle = "#191022";
       ctx.fillRect(x + 6, y + 6, sq, sq);
       if(img && img.width){
         var sc = Math.max(sq / img.width, sq / img.height);
         var dw = img.width * sc, dh = img.height * sc;
-        ctx.drawImage(img, x + 6 + (sq - dw) / 2, y + 6 + (sq - dh) / 2, dw, dh);
+        ctx.drawImage(img, x + 6 + (sq - dw)/2, y + 6 + (sq - dh)/2, dw, dh);
       }
       ctx.restore();
 
       ctx.textBaseline = "middle";
-      ctx.fillStyle = "#efe6ff";
-      ctx.font = "16px -apple-system,'PingFang SC','Noto Sans CJK SC',sans-serif";
+      ctx.fillStyle = isChamp ? "#fff" : "#efe6ff";
+      ctx.font = (isChamp ? "bold 17px " : "16px ") + "-apple-system,'PingFang SC','Noto Sans CJK SC',sans-serif";
       var label = it ? it.name : "—";
       var maxW = CARD_W - sq - 26;
       var t = label;
@@ -851,15 +867,11 @@
       ctx.fillText(t, x + 6 + sq + 10, y + CARD_H / 2);
     }
 
-    function line(x1, y1, x2, y2, color){
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 2;
+    function elb(x1, y1, x2, y2, color){
+      ctx.strokeStyle = color; ctx.lineWidth = 2;
       var mx = (x1 + x2) / 2;
       ctx.beginPath();
-      ctx.moveTo(x1, y1);
-      ctx.lineTo(mx, y1);
-      ctx.lineTo(mx, y2);
-      ctx.lineTo(x2, y2);
+      ctx.moveTo(x1, y1); ctx.lineTo(mx, y1); ctx.lineTo(mx, y2); ctx.lineTo(x2, y2);
       ctx.stroke();
     }
 
@@ -871,50 +883,76 @@
       await preload(ids);
 
       var bg = ctx.createLinearGradient(0, 0, W, H);
-      bg.addColorStop(0, "#1b1026"); bg.addColorStop(0.55, "#120a1a"); bg.addColorStop(1, "#0a0610");
+      bg.addColorStop(0, "#1b1026"); bg.addColorStop(0.5, "#120a1a"); bg.addColorStop(1, "#0a0610");
       ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
 
-      ctx.fillStyle = "#d9bcff";
-      ctx.font = "bold 34px -apple-system,'PingFang SC','Noto Sans CJK SC',sans-serif";
-      ctx.fillText("战双剧情排行 · 冠军杯", PAD + 2, 48);
+      ctx.textAlign = "center";
+      ctx.fillStyle = "#e6d2ff";
+      ctx.font = "bold 36px -apple-system,'PingFang SC','Noto Sans CJK SC',sans-serif";
+      ctx.fillText("战双剧情排行 · 冠军杯", cxCenter, 52);
       ctx.fillStyle = "#7d6a99";
       ctx.font = "15px -apple-system,'PingFang SC','Noto Sans CJK SC',sans-serif";
-      ctx.fillText(leafN + " 强单败淘汰 · 冠军由你亲手选出", PAD + 4, 76);
+      ctx.fillText(perSide * 2 + " 强单败淘汰 · 冠军由你亲手选出", cxCenter, 82);
+      ctx.textAlign = "left";
 
-      // 连线
-      for(var k = 0; k < rounds.length - 1; k++){
-        for(var j = 0; j < rounds[k].length; j++){
-          var m = rounds[k][j];
-          if(!m.w) continue;
-          var y = (m.w === m.a ? pos[k][j].ya : pos[k][j].yb) + CARD_H / 2;
-          var py = pos[k+1][Math.floor(j / 2)].ya + CARD_H / 2;
-          line(xOf(k) + CARD_W, y, xOf(k+1), py, "rgba(178,138,255,.35)");
+      // 左右第一轮：左用 0..half-1，右用 half..n0-1
+      for(var k = 0; k < R - 1; k++){
+        var cnt = pos[k] ? pos[k].length : 0;
+        for(var j = 0; j < cnt; j++){
+          var leftIdx = j;                       // 左侧第 j 场
+          var rightIdx = cnt + j;                // 右侧对应场
+          var mL = rounds[k][leftIdx], mR = rounds[k][rightIdx];
+          // 左侧两卡
+          if(mL){
+            drawCard(xOfLeft(k), pos[k][j].ya, byId2(mL.a), false);
+            if(mL.b) drawCard(xOfLeft(k), pos[k][j].yb, byId2(mL.b), false);
+            if(mL.w && k + 1 < R - 1){
+              var wy = (mL.w === mL.a ? pos[k][j].ya : pos[k][j].yb) + CARD_H/2;
+              var py = pos[k+1][Math.floor(j/2)].ya + CARD_H/2;
+              elb(xOfLeft(k) + CARD_W, wy, xOfLeft(k+1), py, "rgba(178,138,255,.35)");
+            }
+          }
+          if(mR){
+            drawCard(xOfRight(k), pos[k][j].ya, byId2(mR.a), false);
+            if(mR.b) drawCard(xOfRight(k), pos[k][j].yb, byId2(mR.b), false);
+            if(mR.w && k + 1 < R - 1){
+              var wy2 = (mR.w === mR.a ? pos[k][j].ya : pos[k][j].yb) + CARD_H/2;
+              var py2 = pos[k+1][Math.floor(j/2)].ya + CARD_H/2;
+              elb(xOfRight(k), wy2, xOfRight(k+1) + CARD_W, py2, "rgba(178,138,255,.35)");
+            }
+          }
         }
       }
 
-      // 节点
-      for(var k2 = 0; k2 < rounds.length; k2++){
-        for(var i2 = 0; i2 < rounds[k2].length; i2++){
-          var mm = rounds[k2][i2];
-          if(mm.a) drawCard(xOf(k2), pos[k2][i2].ya, byId2(mm.a), false);
-          if(mm.b) drawCard(xOf(k2), pos[k2][i2].yb, byId2(mm.b), false);
-        }
+      // 半决赛 → 冠军（中线）
+      var lastK = R - 2;
+      if(pos[lastK]){
+        var lw = rounds[lastK] && rounds[lastK][0];
+        var rw = rounds[lastK] && rounds[lastK][pos[lastK].length];
+        if(lw && lw.w) elb(xOfLeft(lastK) + CARD_W, pos[lastK][0].ya + CARD_H/2, cxCenter - CARD_W/2 - 40, H/2, "rgba(255,90,140,.6)");
+        if(rw && rw.w) elb(xOfRight(lastK), pos[lastK][0].ya + CARD_H/2, cxCenter + CARD_W/2 + 40, H/2, "rgba(255,90,140,.6)");
       }
 
-      // 冠军
+      // 冠军卡
       var champ = byId2(champId);
-      var cx = xOf(rounds.length);
-      var cy = H / 2 - CARD_H / 2;
-      var last = rounds[rounds.length - 1][0];
-      if(last && last.w){
-        line(xOf(rounds.length - 1) + CARD_W, pos[rounds.length - 1][0].ya + CARD_H / 2,
-             cx, cy + CARD_H / 2, "rgba(255,90,140,.65)");
-      }
-      drawCard(cx, cy, champ, true);
+      var cw = CARD_W + 20, ch = CARD_H + 10;
+      var cxp = cxCenter - cw/2, cyp = H/2 - ch/2;
+      ctx.save();
+      rr(cxp, cyp, cw, ch, 14);
+      ctx.fillStyle = "rgba(255,90,140,.20)"; ctx.fill();
+      ctx.strokeStyle = "#ff5a8c"; ctx.lineWidth = 3; ctx.stroke();
+      ctx.restore();
 
+      ctx.textAlign = "center";
       ctx.fillStyle = "#ffd76e";
-      ctx.font = "bold 18px -apple-system,'PingFang SC','Noto Sans CJK SC',sans-serif";
-      ctx.fillText("冠军", cx + 4, cy - 22);
+      ctx.font = "bold 16px -apple-system,'PingFang SC','Noto Sans CJK SC',sans-serif";
+      ctx.fillText("冠军", cxCenter, cyp - 14);
+      ctx.fillStyle = "#fff";
+      ctx.font = "bold 22px -apple-system,'PingFang SC','Noto Sans CJK SC',sans-serif";
+      var nm = champ ? champ.name : "—";
+      while(ctx.measureText(nm).width > cw - 30 && nm.length > 1) nm = nm.slice(0, -1);
+      ctx.fillText(nm, cxCenter, cyp + ch/2);
+      ctx.textAlign = "left";
 
       var url = canvas.toDataURL("image/jpeg", 0.92);
       document.getElementById("bracketImg").src = url;
